@@ -9,10 +9,11 @@ import { HttpClientModule } from './http-client/http-client.module';
 @Module({
   imports: [
     HealthModule,
-    HttpClientModule, // 🔥 додали наш модуль HTTP-клієнта
+    HttpClientModule,
   ],
   controllers: [AppController],
   providers: [AppService, GameGateway, LobbyGateway],
 })
 export class AppModule {}
+
 
