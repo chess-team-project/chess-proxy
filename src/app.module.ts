@@ -3,9 +3,12 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { GameGateway } from './game/game.gateway';
 import { LobbyGateway } from './lobby/lobby.gateway';
+import { HealthModule } from './health/health.module';
 
 @Module({
-  imports: [],
+  imports: [
+    HealthModule,   // ← додали сюди
+  ],
   controllers: [AppController],
   providers: [AppService, GameGateway, LobbyGateway],
 })
