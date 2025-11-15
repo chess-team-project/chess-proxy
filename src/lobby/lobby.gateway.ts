@@ -4,120 +4,181 @@ import {
   SubscribeMessage,
   ConnectedSocket,
   MessageBody,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import {
+  C2SLobbyEvents,
+  LobbyRoom,
+  Player,
+  S2CLobbyEvents,
+} from './lobby.interfaces';
+import { CreateLobbyDto } from './dto/create-lobby.dto'; 
+import { JoinLobbyDto } from './dto/join-lobby.dto';
+import {
+  UsePipes,
+  ValidationPipe,
+  UseFilters,
+} from '@nestjs/common';
+import { WsValidationExceptionFilter } from 'src/common/ws-validation.filter';
 
-interface LobbyRoom {
-  id: string;
-  players: string[];
-}
-
+@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+@UseFilters(new WsValidationExceptionFilter())
 @WebSocketGateway({
   cors: { origin: '*' },
   namespace: '/lobby',
 })
-export class LobbyGateway {
+export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  io: Server;
+  io: Server<C2SLobbyEvents, S2CLobbyEvents>;
 
-  private rooms: Record<string, LobbyRoom> = {};
+  private static rooms: Map<string, LobbyRoom> = new Map();
 
   private generateRoomId(): string {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
+    return Math.random().toString(36).substring(2, 6).toUpperCase();
   }
 
-  handleConnection(client: Socket) {
-    console.log('🟢 Client connected to /lobby:', client.id);
+  handleConnection(client: Socket<C2SLobbyEvents, S2CLobbyEvents>) {
+    console.log(`🟢 Client connected to /lobby: ${client.id}`);
   }
 
-  handleDisconnect(client: Socket) {
-    console.log('🔴 Client disconnected:', client.id);
+  handleDisconnect(client: Socket<C2SLobbyEvents, S2CLobbyEvents>) {
+    console.log(`🔴 Client disconnected from /lobby: ${client.id}`);
+
+    LobbyGateway.rooms.forEach((room, roomId) => {
+      const playerIndex = room.players.findIndex((p) => p.id === client.id);
+
+      if (playerIndex !== -1) {
+        console.log(`Player ${client.id} leaving room ${roomId}`);
+        room.players.splice(playerIndex, 1);
+
+        if (room.players.length === 0) {
+          LobbyGateway.rooms.delete(roomId);
+          console.log(`Room ${roomId} is empty, deleting.`);
+        } else {
+          room.status = 'waiting';
+          this.io.to(roomId).emit('lobby:update', {
+            roomId,
+            message: `Opponent disconnected.`,
+            players: room.players,
+          });
+        }
+      }
+    });
   }
 
-  // CREATE ROOM
   @SubscribeMessage('lobby:create')
   handleCreateRoom(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { name: string },
+    @ConnectedSocket() client: Socket<C2SLobbyEvents, S2CLobbyEvents>,
+    @MessageBody() data: CreateLobbyDto,
   ) {
-    const roomId = this.generateRoomId();
+    // --- 🔽 НОВА ПЕРЕВІРКА (Constraint 2) 🔽 ---
+    // Перевіряємо, чи цей клієнт (socket.id) вже є в якійсь кімнаті
+    const clientId = client.id;
+    for (const room of LobbyGateway.rooms.values()) {
+      if (room.players.some((p) => p.id === clientId)) {
+        client.emit('lobby:error', {
+          message: `You are already in a lobby (${room.roomId}). Cannot create another.`,
+        });
+        return; // Зупиняємо створення
+      }
+    }
+    // --- 🔼 КІНЕЦЬ ПЕРЕВІРКИ 🔼 ---
 
-    this.rooms[roomId] = {
-      id: roomId,
-      players: [client.id],
+    const roomId = this.generateRoomId();
+    const player: Player = { id: client.id, name: data.name };
+
+    const newRoom: LobbyRoom = {
+      roomId: roomId,
+      players: [player],
+      status: 'waiting',
     };
 
+    LobbyGateway.rooms.set(roomId, newRoom);
     client.join(roomId);
 
-    console.log(`🏠 Room created ${roomId} by ${client.id}`, data);
+    console.log(`🏠 Room created ${roomId} by ${player.name} (${client.id})`);
 
     client.emit('lobby:created', {
-      roomId,
-      players: this.rooms[roomId].players,
+      roomId: newRoom.roomId,
+      players: newRoom.players,
       message: `Room ${roomId} created`,
     });
   }
 
-  // JOIN ROOM
   @SubscribeMessage('lobby:join')
-  handleJoinRoom(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() rawData: any,
+  async handleJoinRoom(
+    @ConnectedSocket() client: Socket<C2SLobbyEvents, S2CLobbyEvents>,
+    @MessageBody() data: JoinLobbyDto,
   ) {
-    let data = rawData;
-
-    if (typeof data === 'string') {
-      try {
-        data = JSON.parse(data);
-      } catch {
-        console.error('Failed to parse JSON string');
-        client.emit('lobby:error', { message: 'Invalid data format' });
-        return;
-      }
-    }
-
-    if (!data || typeof data !== 'object' || !data.roomId) {
-      console.log('❌ Invalid or missing data.roomId in payload:', data);
-      client.emit('lobby:error', { message: 'Room ID is missing or invalid' });
-      return;
-    }
-
-    console.log('👋 handleJoinRoom() RAW payload:', data);
-    console.log('   Rooms object keys:', Object.keys(this.rooms));
-
-    const roomIdFromClient = data.roomId as string;
-    const room = this.rooms[roomIdFromClient];
-
-    console.log('   Looking for room with id =', roomIdFromClient);
-
-    if (!room) {
-      client.emit('lobby:error', {
-        message: `Room ${roomIdFromClient} not found`,
-      });
-      return;
-    }
-
-    room.players.push(client.id);
-    client.join(roomIdFromClient);
+    const { roomId, name } = data;
+    const room = LobbyGateway.rooms.get(roomId);
 
     console.log(
-      `✅ Player ${client.id} joined room ${roomIdFromClient}. Players:`,
-      room.players,
+      `👋 Player ${name} (${client.id}) trying to join room ${roomId}`,
     );
 
-    this.io.to(roomIdFromClient).emit('lobby:joined', {
-      roomId: roomIdFromClient,
+    if (!room) {
+      client.emit('lobby:error', { message: `Room ${roomId} not found` });
+      return;
+    }
+
+    // --- 🔽 НОВА ПЕРЕВІРКА (Constraint 1) 🔽 ---
+    // Перевіряємо, чи ім'я вже зайняте в ЦІЙ кімнаті (нечутливо до регістру)
+    const nameInUse = room.players.some(
+      (p) => p.name.toLowerCase() === name.toLowerCase(),
+    );
+    if (nameInUse) {
+      client.emit('lobby:error', {
+        message: `The name "${name}" is already taken in this lobby.`,
+      });
+      return; // Зупиняємо приєднання
+    }
+    // --- 🔼 КІНЕЦЬ ПЕРЕВІРКИ 🔼 ---
+
+    if (room.players.length >= 2) {
+      client.emit('lobby:error', { message: `Room ${roomId} is full` });
+      return;
+    }
+
+    const newPlayer: Player = { id: client.id, name: name };
+    room.players.push(newPlayer);
+    client.join(roomId);
+
+    console.log(`✅ Player ${newPlayer.name} joined room ${roomId}.`);
+
+    this.io.to(roomId).emit('lobby:update', {
+      roomId: room.roomId,
       players: room.players,
-      hello: `Вітаю, ${data.name || 'гравцю'}! Ви в лобі ${roomIdFromClient}.`,
+      message: `${newPlayer.name} joined.`,
     });
 
     if (room.players.length === 2) {
-      console.log(`♟️ Starting game in room ${roomIdFromClient}`);
-      this.io.to(roomIdFromClient).emit('game:start', {
-        roomId: roomIdFromClient,
-        white: room.players[0],
-        black: room.players[1],
-      });
+      room.status = 'ingame';
+      console.log(`🚀 Room ${roomId} is full. Calling create game stub...`);
+
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        console.log(`✅ Game service stub confirmed game ${roomId} creation.`);
+
+        this.io.to(roomId).emit('game:start', {
+          roomId: room.roomId,
+          white: room.players[0],
+          black: room.players[1],
+        });
+
+        LobbyGateway.rooms.delete(roomId);
+        console.log(`🧹 Lobby ${roomId} destroyed after game start.`);
+      } catch (error) {
+        console.error('Error in game creation stub:', error.message);
+        this.io.to(roomId).emit('lobby:error', {
+          message: 'Failed to create game. Please try again.',
+        });
+        room.status = 'waiting';
+        room.players = [room.players[0]];
+      }
     }
   }
 }

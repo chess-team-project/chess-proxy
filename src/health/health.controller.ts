@@ -2,13 +2,13 @@ import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 
 @Controller()
 export class HealthController {
-  private isDependenciesReady = true; 
+  private isDependenciesReady = true;
 
   @Get('/health')
   getHealth() {
     return {
       status: 'ok',
-      uptime: process.uptime(), 
+      uptime: process.uptime(),
       timestamp: new Date().toISOString(),
     };
   }
@@ -30,7 +30,7 @@ export class HealthController {
       timestamp: new Date().toISOString(),
       details: {
         database: 'OK',
-      }
+      },
     };
   }
 }

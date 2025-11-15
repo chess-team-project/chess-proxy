@@ -7,7 +7,7 @@ import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
-    HealthModule,   // ← додали сюди
+    HealthModule, // ← додали сюди
   ],
   controllers: [AppController],
   providers: [AppService, GameGateway, LobbyGateway],
