@@ -21,12 +21,12 @@ export interface S2CLobbyEvents {
 }
 
 export interface C2SLobbyEvents {
-  'lobby:create': (payload: CreateLobbyDto, ack: () => void) => void; // Added ack for example
+  'lobby:create': (payload: CreateLobbyDto) => void;
   'lobby:join': (payload: JoinLobbyDto) => void;
 }
 
 export interface Player {
-  id: string; // Socket.id
+  id: string;
   name: string;
 }
 

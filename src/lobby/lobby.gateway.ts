@@ -69,18 +69,15 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket<C2SLobbyEvents, S2CLobbyEvents>,
     @MessageBody() data: CreateLobbyDto,
   ) {
-    // --- 🔽 НОВА ПЕРЕВІРКА (Constraint 2) 🔽 ---
-    // Перевіряємо, чи цей клієнт (socket.id) вже є в якійсь кімнаті
     const clientId = client.id;
     for (const room of LobbyGateway.rooms.values()) {
       if (room.players.some((p) => p.id === clientId)) {
         client.emit('lobby:error', {
           message: `You are already in a lobby (${room.roomId}). Cannot create another.`,
         });
-        return; // Зупиняємо створення
+        return;
       }
     }
-    // --- 🔼 КІНЕЦЬ ПЕРЕВІРКИ 🔼 ---
 
     const roomId = this.generateRoomId();
     const player: Player = { id: client.id, name: data.name };
@@ -120,8 +117,6 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
-    // --- 🔽 НОВА ПЕРЕВІРКА (Constraint 1) 🔽 ---
-    // Перевіряємо, чи ім'я вже зайняте в ЦІЙ кімнаті (нечутливо до регістру)
     const nameInUse = room.players.some(
       (p) => p.name.toLowerCase() === name.toLowerCase(),
     );
@@ -129,9 +124,8 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.emit('lobby:error', {
         message: `The name "${name}" is already taken in this lobby.`,
       });
-      return; // Зупиняємо приєднання
+      return;
     }
-    // --- 🔼 КІНЕЦЬ ПЕРЕВІРКИ 🔼 ---
 
     if (room.players.length >= 2) {
       client.emit('lobby:error', { message: `Room ${roomId} is full` });

@@ -1,4 +1,3 @@
-// src/ws-validation.filter.ts
 import { Catch, ArgumentsHost } from '@nestjs/common';
 import { BaseWsExceptionFilter } from '@nestjs/websockets';
 import { BadRequestException } from '@nestjs/common';
@@ -12,19 +11,13 @@ export class WsValidationExceptionFilter extends BaseWsExceptionFilter {
 
     let validationMessages: string | string[] = 'Validation failed';
 
-    // 🔽 Оновлена логіка:
-    // Безпечно перевіряємо, чи є errorResponse об'єктом,
-    // і чи є у нього властивість 'message'.
     if (
       typeof errorResponse === 'object' &&
       errorResponse !== null &&
       'message' in errorResponse
     ) {
-      // Тільки тепер ми безпечно отримуємо 'message'.
-      // Типізуємо 'message' як 'unknown', щоб linter був щасливий
       const msg = (errorResponse as { message: unknown }).message;
 
-      // Перевіряємо, чи 'message' є рядком або масивом рядків
       if (typeof msg === 'string' || Array.isArray(msg)) {
         validationMessages = msg;
       }
