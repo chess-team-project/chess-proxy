@@ -33,14 +33,14 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('game:join')
-  handleGameJoin(
+  async handleGameJoin(
     @ConnectedSocket() client: Socket<C2SGameEvents, S2CGameEvents>,
     @MessageBody() data: GameJoinDto,
   ) {
     console.log(
       `Player ${data.playerName} (${client.id}) joining game room ${data.roomId} on /game`,
     );
-    client.join(data.roomId);
+    await client.join(data.roomId);
 
     client.emit('game:joined', {
       message: `You are successfully connected to game ${data.roomId}`,
@@ -62,6 +62,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     );
 
     client.to(data.roomId).emit('game:moveMade', {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       move: data.move,
       playerName: data.playerName,
     });

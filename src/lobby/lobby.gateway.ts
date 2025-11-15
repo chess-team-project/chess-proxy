@@ -14,13 +14,9 @@ import {
   Player,
   S2CLobbyEvents,
 } from './lobby.interfaces';
-import { CreateLobbyDto } from './dto/create-lobby.dto'; 
+import { CreateLobbyDto } from './dto/create-lobby.dto';
 import { JoinLobbyDto } from './dto/join-lobby.dto';
-import {
-  UsePipes,
-  ValidationPipe,
-  UseFilters,
-} from '@nestjs/common';
+import { UsePipes, ValidationPipe, UseFilters } from '@nestjs/common';
 import { WsValidationExceptionFilter } from 'src/common/ws-validation.filter';
 
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
@@ -69,7 +65,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('lobby:create')
-  handleCreateRoom(
+  async handleCreateRoom(
     @ConnectedSocket() client: Socket<C2SLobbyEvents, S2CLobbyEvents>,
     @MessageBody() data: CreateLobbyDto,
   ) {
@@ -96,7 +92,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
     };
 
     LobbyGateway.rooms.set(roomId, newRoom);
-    client.join(roomId);
+    await client.join(roomId);
 
     console.log(`🏠 Room created ${roomId} by ${player.name} (${client.id})`);
 
@@ -144,7 +140,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const newPlayer: Player = { id: client.id, name: name };
     room.players.push(newPlayer);
-    client.join(roomId);
+    await client.join(roomId);
 
     console.log(`✅ Player ${newPlayer.name} joined room ${roomId}.`);
 
@@ -172,7 +168,11 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
         LobbyGateway.rooms.delete(roomId);
         console.log(`🧹 Lobby ${roomId} destroyed after game start.`);
       } catch (error) {
-        console.error('Error in game creation stub:', error.message);
+        console.error(
+          'Error in game creation stub:',
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          error?.message || 'unknown error',
+        );
         this.io.to(roomId).emit('lobby:error', {
           message: 'Failed to create game. Please try again.',
         });
