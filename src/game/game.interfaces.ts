@@ -1,4 +1,4 @@
-type ChessMove = any; // You can make this more specific, e.g., { from: string, to: string }
+type ChessMove = any;
 
 export interface S2CGameEvents {
   'game:joined': (payload: { message: string }) => void;

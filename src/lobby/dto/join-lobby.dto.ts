@@ -4,7 +4,7 @@ export class JoinLobbyDto {
   @IsString()
   @IsNotEmpty()
   @IsUppercase()
-  @Length(4, 4) // Based on your generateRoomId()
+  @Length(4, 4)
   roomId: string;
 
   @IsString()

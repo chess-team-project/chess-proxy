@@ -1,4 +1,3 @@
-// (e.g., src/game/dto/game-move.dto.ts)
 import {
   IsDefined,
   IsNotEmpty,
@@ -20,6 +19,6 @@ export class GameMoveDto {
   playerName: string;
 
   @IsDefined()
-  @IsNotEmpty() // Ensures move is not null/undefined
-  move: any; // Kept as 'any' based on your original code
+  @IsNotEmpty()
+  move: any;
 }
