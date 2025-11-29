@@ -20,6 +20,7 @@ import { UsePipes, ValidationPipe, UseFilters } from '@nestjs/common';
 import { WsValidationExceptionFilter } from 'src/common/ws-validation.filter';
 import { CusromLoggerService } from 'src/common/logger/logger.service';
 import { HttpClientService } from 'src/http-client/http-client.service';
+import { GameStateService } from 'src/game/game-state.service';
 
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 @UseFilters(new WsValidationExceptionFilter())
@@ -31,6 +32,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly httpClientService: HttpClientService,
     private readonly logger: CusromLoggerService,
+    private readonly gameStateService: GameStateService,
   ) {
     this.logger.setContext(LobbyGateway.name);
   }
@@ -38,7 +40,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   io: Server<C2SLobbyEvents, S2CLobbyEvents>;
 
-  private static rooms: Map<string, LobbyRoom> = new Map();
+  private  rooms: Map<string, LobbyRoom> = new Map();
 
   private generateRoomId(): string {
     return Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -51,7 +53,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleDisconnect(client: Socket<C2SLobbyEvents, S2CLobbyEvents>) {
     this.logger.log(`🔴 Client disconnected: ${client.id}`);
 
-    LobbyGateway.rooms.forEach((room, roomId) => {
+    this.rooms.forEach((room, roomId) => {
       const playerIndex = room.players.findIndex((p) => p.id === client.id);
 
       if (playerIndex !== -1) {
@@ -59,7 +61,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
         room.players.splice(playerIndex, 1);
 
         if (room.players.length === 0) {
-          LobbyGateway.rooms.delete(roomId);
+          this.rooms.delete(roomId);
           this.logger.warn(`Room ${roomId} is empty, deleting.`);
         } else {
           room.status = 'waiting';
@@ -79,7 +81,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: CreateLobbyDto,
   ) {
     const clientId = client.id;
-    for (const room of LobbyGateway.rooms.values()) {
+    for (const room of this.rooms.values()) {
       if (room.players.some((p) => p.id === clientId)) {
         client.emit('lobby:error', {
           message: `You are already in a lobby (${room.roomId}). Cannot create another.`,
@@ -98,7 +100,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
       status: 'waiting',
     };
 
-    LobbyGateway.rooms.set(roomId, newRoom);
+    this.rooms.set(roomId, newRoom);
     await client.join(roomId);
 
     this.logger.log(`🏠 Room created ${roomId} by ${player.name} (${client.id})`);
@@ -116,7 +118,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: JoinLobbyDto,
   ) {
     const { roomId, name } = data;
-    const room = LobbyGateway.rooms.get(roomId);
+    const room = this.rooms.get(roomId);
 
     this.logger.debug(
       `👋 Player ${name} (${client.id}) trying to join room ${roomId}`,
@@ -162,18 +164,21 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.logger.log(`🚀 Room ${roomId} is full. Calling create game stub...`);
 
       try {
-        const { gameId } = await this.httpClientService.createGame(room.roomId)
+        const { gameId, fen, legalMoves } = await this.httpClientService.createGame(room.roomId)
 
         this.logger.log(`✅ Game service stub confirmed game ${gameId} creation.`);
-        console.dir()
+       
+        const gameSession = this.gameStateService.createGame({
+          player1Name: room.players[0].name,
+          player2Name: room.players[1].name,
+          gameId,
+          fen,
+          legalMoves,
+        })
 
-        this.io.to(roomId).emit('game:start', {
-          roomId: room.roomId,
-          white: room.players[0],
-          black: room.players[1],
-        });
+        this.io.to(roomId).emit('game:start', gameSession);
 
-        LobbyGateway.rooms.delete(roomId);
+        this.rooms.delete(roomId);
         this.logger.log(`🧹 Lobby ${roomId} destroyed after game start.`);
       } catch (error) {
 
