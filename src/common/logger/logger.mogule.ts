@@ -17,9 +17,9 @@ import { ConfigService } from '@nestjs/config';
           transports: [new winston.transports.Console()],
           level: logLevel,
           format: winston.format.combine(
-            winston.format.timestamp(),
-            winston.format.printf(({ level, message, context, timestamp }) => {
-              return `[CHESS-PROXY] ${timestamp} [${level.toUpperCase()}] [${context || 'no context'}] ${message}`;
+            winston.format.colorize({ all: true }),
+            winston.format.printf(({ level, message, context }) => {
+              return `${level.toUpperCase()} [${context || '-'}] ${message}`;
             }),
           ),
         })

@@ -31,7 +31,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly httpClientService: HttpClientService,
     private readonly logger: CusromLoggerService,
-  ) { 
+  ) {
     this.logger.setContext(LobbyGateway.name);
   }
 
@@ -45,11 +45,11 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   handleConnection(client: Socket<C2SLobbyEvents, S2CLobbyEvents>) {
-    this.logger.log(`🟢 Client connected: ${client.id}`); 
+    this.logger.log(`🟢 Client connected: ${client.id}`);
   }
 
   handleDisconnect(client: Socket<C2SLobbyEvents, S2CLobbyEvents>) {
-    this.logger.log(`🔴 Client disconnected: ${client.id}`); 
+    this.logger.log(`🔴 Client disconnected: ${client.id}`);
 
     LobbyGateway.rooms.forEach((room, roomId) => {
       const playerIndex = room.players.findIndex((p) => p.id === client.id);
@@ -60,7 +60,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
         if (room.players.length === 0) {
           LobbyGateway.rooms.delete(roomId);
-          this.logger.warn(`Room ${roomId} is empty, deleting.`); 
+          this.logger.warn(`Room ${roomId} is empty, deleting.`);
         } else {
           room.status = 'waiting';
           this.io.to(roomId).emit('lobby:update', {
@@ -101,7 +101,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
     LobbyGateway.rooms.set(roomId, newRoom);
     await client.join(roomId);
 
-    this.logger.log(`🏠 Room created ${roomId} by ${player.name} (${client.id})`); 
+    this.logger.log(`🏠 Room created ${roomId} by ${player.name} (${client.id})`);
 
     client.emit('lobby:created', {
       roomId: newRoom.roomId,
@@ -118,13 +118,13 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const { roomId, name } = data;
     const room = LobbyGateway.rooms.get(roomId);
 
-    this.logger.debug( 
+    this.logger.debug(
       `👋 Player ${name} (${client.id}) trying to join room ${roomId}`,
     );
 
     if (!room) {
       client.emit('lobby:error', { message: `Room ${roomId} not found` });
-      this.logger.warn(`Join failed: Room ${roomId} not found.`); 
+      this.logger.warn(`Join failed: Room ${roomId} not found.`);
       return;
     }
 
@@ -141,7 +141,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (room.players.length >= 2) {
       client.emit('lobby:error', { message: `Room ${roomId} is full` });
-      this.logger.warn(`Join failed: Room ${roomId} is full.`); 
+      this.logger.warn(`Join failed: Room ${roomId} is full.`);
       return;
     }
 
@@ -149,7 +149,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
     room.players.push(newPlayer);
     await client.join(roomId);
 
-    this.logger.log(`✅ Player ${newPlayer.name} joined room ${roomId}.`); 
+    this.logger.log(`✅ Player ${newPlayer.name} joined room ${roomId}.`);
 
     this.io.to(roomId).emit('lobby:update', {
       roomId: room.roomId,
@@ -159,13 +159,12 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (room.players.length === 2) {
       room.status = 'ingame';
-      this.logger.log(`🚀 Room ${roomId} is full. Calling create game stub...`); 
+      this.logger.log(`🚀 Room ${roomId} is full. Calling create game stub...`);
 
       try {
-        const board = await this.httpClientService.createGame(room.roomId)
+        const { gameId } = await this.httpClientService.createGame(room.roomId)
 
-        this.logger.log(`✅ Game service stub confirmed game ${roomId} creation.`); 
-        console.log(`✅ Game service stub confirmed game ${roomId} creation.`);
+        this.logger.log(`✅ Game service stub confirmed game ${gameId} creation.`);
         console.dir()
 
         this.io.to(roomId).emit('game:start', {
@@ -175,9 +174,9 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
 
         LobbyGateway.rooms.delete(roomId);
-        this.logger.log(`🧹 Lobby ${roomId} destroyed after game start.`); 
+        this.logger.log(`🧹 Lobby ${roomId} destroyed after game start.`);
       } catch (error) {
-        
+
         this.logger.error(
           `Error in game creation stub for room ${roomId}: ${error?.message || 'unknown error'}`,
           error instanceof Error ? error.stack : undefined,
