@@ -29,19 +29,16 @@ import { HttpClientService } from 'src/http-client/http-client.service';
 })
 export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
-    private readonly httpClientService: HttpClientService
-  ) { }
+    private readonly httpClientService: HttpClientService,
+    private readonly loggerService: WinstonLoggerService,
+  ) { 
+    this.loggerService.setContext(LobbyGateway.name);
+  }
 
   @WebSocketServer()
   io: Server<C2SLobbyEvents, S2CLobbyEvents>;
 
   private static rooms: Map<string, LobbyRoom> = new Map();
-
-  
-  constructor(private readonly loggerService: WinstonLoggerService) {
-    
-    this.loggerService.setContext(LobbyGateway.name);
-  }
 
   private generateRoomId(): string {
     return Math.random().toString(36).substring(2, 6).toUpperCase();
