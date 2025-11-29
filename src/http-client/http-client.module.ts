@@ -7,5 +7,5 @@ import { HttpClientController } from './http-client.controller';
   providers: [HttpClientService],
   exports: [HttpClientService],
 })
-export class HttpClientModule {}   // ← ОЦЕ МАЄ БУТИ ТОЧНО ТАК
+export class HttpClientModule {}  
 
