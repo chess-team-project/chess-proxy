@@ -18,6 +18,7 @@ import { CreateLobbyDto } from './dto/create-lobby.dto';
 import { JoinLobbyDto } from './dto/join-lobby.dto';
 import { UsePipes, ValidationPipe, UseFilters } from '@nestjs/common';
 import { WsValidationExceptionFilter } from 'src/common/ws-validation.filter';
+import { WinstonLoggerService } from 'src/common/logger.service';
 import { HttpClientService } from 'src/http-client/http-client.service';
 
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
@@ -36,27 +37,33 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private static rooms: Map<string, LobbyRoom> = new Map();
 
+  
+  constructor(private readonly loggerService: WinstonLoggerService) {
+    
+    this.loggerService.setContext(LobbyGateway.name);
+  }
+
   private generateRoomId(): string {
     return Math.random().toString(36).substring(2, 6).toUpperCase();
   }
 
   handleConnection(client: Socket<C2SLobbyEvents, S2CLobbyEvents>) {
-    console.log(`🟢 Client connected to /lobby: ${client.id}`);
+    this.loggerService.log(`🟢 Client connected: ${client.id}`); 
   }
 
   handleDisconnect(client: Socket<C2SLobbyEvents, S2CLobbyEvents>) {
-    console.log(`🔴 Client disconnected from /lobby: ${client.id}`);
+    this.loggerService.log(`🔴 Client disconnected: ${client.id}`); 
 
     LobbyGateway.rooms.forEach((room, roomId) => {
       const playerIndex = room.players.findIndex((p) => p.id === client.id);
 
       if (playerIndex !== -1) {
-        console.log(`Player ${client.id} leaving room ${roomId}`);
+        this.loggerService.warn(`Player ${client.id} leaving room ${roomId}`);
         room.players.splice(playerIndex, 1);
 
         if (room.players.length === 0) {
           LobbyGateway.rooms.delete(roomId);
-          console.log(`Room ${roomId} is empty, deleting.`);
+          this.loggerService.warn(`Room ${roomId} is empty, deleting.`); 
         } else {
           room.status = 'waiting';
           this.io.to(roomId).emit('lobby:update', {
@@ -80,6 +87,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.emit('lobby:error', {
           message: `You are already in a lobby (${room.roomId}). Cannot create another.`,
         });
+        this.loggerService.warn(`Client ${clientId} tried to create a room but is already in room ${room.roomId}.`);
         return;
       }
     }
@@ -96,7 +104,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
     LobbyGateway.rooms.set(roomId, newRoom);
     await client.join(roomId);
 
-    console.log(`🏠 Room created ${roomId} by ${player.name} (${client.id})`);
+    this.loggerService.log(`🏠 Room created ${roomId} by ${player.name} (${client.id})`); 
 
     client.emit('lobby:created', {
       roomId: newRoom.roomId,
@@ -113,12 +121,13 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const { roomId, name } = data;
     const room = LobbyGateway.rooms.get(roomId);
 
-    console.log(
+    this.loggerService.debug( 
       `👋 Player ${name} (${client.id}) trying to join room ${roomId}`,
     );
 
     if (!room) {
       client.emit('lobby:error', { message: `Room ${roomId} not found` });
+      this.loggerService.warn(`Join failed: Room ${roomId} not found.`); 
       return;
     }
 
@@ -129,11 +138,13 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.emit('lobby:error', {
         message: `The name "${name}" is already taken in this lobby.`,
       });
+      this.loggerService.warn(`Join failed: Name "${name}" already taken in room ${roomId}.`);
       return;
     }
 
     if (room.players.length >= 2) {
       client.emit('lobby:error', { message: `Room ${roomId} is full` });
+      this.loggerService.warn(`Join failed: Room ${roomId} is full.`); 
       return;
     }
 
@@ -141,7 +152,7 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
     room.players.push(newPlayer);
     await client.join(roomId);
 
-    console.log(`✅ Player ${newPlayer.name} joined room ${roomId}.`);
+    this.loggerService.log(`✅ Player ${newPlayer.name} joined room ${roomId}.`); 
 
     this.io.to(roomId).emit('lobby:update', {
       roomId: room.roomId,
@@ -151,11 +162,12 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (room.players.length === 2) {
       room.status = 'ingame';
-      console.log(`🚀 Room ${roomId} is full. Calling create game stub...`);
+      this.loggerService.log(`🚀 Room ${roomId} is full. Calling create game stub...`); 
 
       try {
         const board = await this.httpClientService.createGame(room.roomId)
 
+        this.loggerService.log(`✅ Game service stub confirmed game ${roomId} creation.`); 
         console.log(`✅ Game service stub confirmed game ${roomId} creation.`);
         console.dir()
 
@@ -166,13 +178,14 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
 
         LobbyGateway.rooms.delete(roomId);
-        console.log(`🧹 Lobby ${roomId} destroyed after game start.`);
+        this.loggerService.log(`🧹 Lobby ${roomId} destroyed after game start.`); 
       } catch (error) {
-        console.error(
-          'Error in game creation stub:',
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          error?.message || 'unknown error',
+        
+        this.loggerService.error(
+          `Error in game creation stub for room ${roomId}: ${error?.message || 'unknown error'}`,
+          error instanceof Error ? error.stack : undefined,
         );
+
         this.io.to(roomId).emit('lobby:error', {
           message: 'Failed to create game. Please try again.',
         });
