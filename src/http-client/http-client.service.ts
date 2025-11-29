@@ -1,19 +1,23 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 
 @Injectable()
 export class HttpClientService {
   private readonly logger = new Logger(HttpClientService.name);
   private readonly client: AxiosInstance;
+  private readonly JAVA_TOKEN: string;
 
-  constructor() {
+  constructor(
+    private configService: ConfigService
+  ) {
     this.client = axios.create({
-      baseURL: 'http://localhost:8080', // 🔥 URL твого Java-сервісу
-      timeout: 3000,                    // 3s timeout
+      baseURL: this.configService.getOrThrow<string>('JAVA_URL'),
+      timeout: 1000,
     });
+    this.JAVA_TOKEN=configService.getOrThrow<string>('JAVA_TOKEN')
   }
 
-  // 🔁 універсальна функція з retry
   private async withRetry<T>(
     fn: () => Promise<T>,
     retries = 3,
@@ -41,10 +45,55 @@ export class HttpClientService {
     throw lastError;
   }
 
-  // приклад GET-запиту до Java
   async getJavaHealth() {
     return this.withRetry(async () => {
-      const response = await this.client.get('/api/health'); // наприклад Java має /api/ping
+      const response = await this.client.get('/api/health');
+      return response.data;
+    });
+  }
+
+
+  async createGame(gameId: string) {
+    return this.withRetry(async () => {
+      const response = await this.client.post(
+        `/api/game/create/${encodeURIComponent(gameId)}`,
+        undefined,
+        {
+          headers: {
+            Authorization: this.JAVA_TOKEN,
+          },
+        },
+      );
+      return response.data;
+    });
+  }
+
+  async getGameState(gameId: string) {
+    return this.withRetry(async () => {
+      const response = await this.client.get(
+        `/api/game/state/${encodeURIComponent(gameId)}`,
+        {
+          headers: {
+            Authorization: this.JAVA_TOKEN,
+          },
+        },
+      );
+      return response.data;
+    });
+  }
+
+  async makeMove(gameId: string, move: string) {
+    return this.withRetry(async () => {
+      const response = await this.client.post(
+        `/api/game/move/${encodeURIComponent(gameId)}`,
+        { move },
+        {
+          headers: {
+            Authorization: this.JAVA_TOKEN,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
       return response.data;
     });
   }

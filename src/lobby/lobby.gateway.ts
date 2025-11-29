@@ -18,6 +18,7 @@ import { CreateLobbyDto } from './dto/create-lobby.dto';
 import { JoinLobbyDto } from './dto/join-lobby.dto';
 import { UsePipes, ValidationPipe, UseFilters } from '@nestjs/common';
 import { WsValidationExceptionFilter } from 'src/common/ws-validation.filter';
+import { HttpClientService } from 'src/http-client/http-client.service';
 
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 @UseFilters(new WsValidationExceptionFilter())
@@ -26,6 +27,10 @@ import { WsValidationExceptionFilter } from 'src/common/ws-validation.filter';
   namespace: '/lobby',
 })
 export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
+  constructor(
+    private readonly httpClientService: HttpClientService
+  ) { }
+
   @WebSocketServer()
   io: Server<C2SLobbyEvents, S2CLobbyEvents>;
 
@@ -149,9 +154,10 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
       console.log(`🚀 Room ${roomId} is full. Calling create game stub...`);
 
       try {
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        const board = await this.httpClientService.createGame(room.roomId)
 
         console.log(`✅ Game service stub confirmed game ${roomId} creation.`);
+        console.dir()
 
         this.io.to(roomId).emit('game:start', {
           roomId: room.roomId,
