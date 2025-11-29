@@ -5,8 +5,8 @@ import { GameGateway } from './game/game.gateway';
 import { LobbyGateway } from './lobby/lobby.gateway';
 import { HealthModule } from './health/health.module';
 import { HttpClientModule } from './http-client/http-client.module';
-import { WinstonLoggerService } from './common/logger.service'; 
 import { ConfigModule } from '@nestjs/config';
+import { LoggerModule } from './common/logger/logger.mogule';
 
 @Module({
   imports: [
@@ -15,8 +15,9 @@ import { ConfigModule } from '@nestjs/config';
     ConfigModule.forRoot({
       isGlobal: true
     }),
+    LoggerModule,
   ],
   controllers: [AppController],
-  providers: [AppService, GameGateway, LobbyGateway, WinstonLoggerService],
+  providers: [AppService, GameGateway, LobbyGateway],
 })
 export class AppModule {}
