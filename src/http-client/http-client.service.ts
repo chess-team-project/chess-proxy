@@ -1,21 +1,23 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
+import { CusromLoggerService } from 'src/common/logger/logger.service';
 
 @Injectable()
 export class HttpClientService {
-  private readonly logger = new Logger(HttpClientService.name);
   private readonly client: AxiosInstance;
   private readonly JAVA_TOKEN: string;
 
   constructor(
-    private configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly logger: CusromLoggerService,
   ) {
+    this.logger.setContext(HttpClientService.name);
     this.client = axios.create({
       baseURL: this.configService.getOrThrow<string>('JAVA_URL'),
       timeout: 1000,
     });
-    this.JAVA_TOKEN=configService.getOrThrow<string>('JAVA_TOKEN')
+    this.JAVA_TOKEN = configService.getOrThrow<string>('JAVA_TOKEN')
   }
 
   private async withRetry<T>(
@@ -47,7 +49,7 @@ export class HttpClientService {
 
   async getJavaHealth() {
     return this.withRetry(async () => {
-      const response = await this.client.get('/api/health');
+      const response = await this.client.get<{ status: string }>('/api/health');
       return response.data;
     });
   }
@@ -55,7 +57,7 @@ export class HttpClientService {
 
   async createGame(gameId: string) {
     return this.withRetry(async () => {
-      const response = await this.client.post(
+      const response = await this.client.post<{ fen: string, legalMoves: string[], gameId: string }>(
         `/api/game/create/${encodeURIComponent(gameId)}`,
         undefined,
         {
@@ -70,7 +72,7 @@ export class HttpClientService {
 
   async getGameState(gameId: string) {
     return this.withRetry(async () => {
-      const response = await this.client.get(
+      const response = await this.client.get<{ fen: string, legalMoves: string[] }>(
         `/api/game/state/${encodeURIComponent(gameId)}`,
         {
           headers: {
@@ -84,13 +86,26 @@ export class HttpClientService {
 
   async makeMove(gameId: string, move: string) {
     return this.withRetry(async () => {
-      const response = await this.client.post(
+      const response = await this.client.post<{ fen: string, legalMoves: string[] }>(
         `/api/game/move/${encodeURIComponent(gameId)}`,
         { move },
         {
           headers: {
             Authorization: this.JAVA_TOKEN,
             'Content-Type': 'application/json',
+          },
+        },
+      );
+      return response.data;
+    });
+  }
+  async deleteGame(gameId: string) {
+    return this.withRetry(async () => {
+      const response = await this.client.post<{ message: string }>(
+        `/api/game/move/${encodeURIComponent(gameId)}`,
+        {
+          headers: {
+            Authorization: this.JAVA_TOKEN,
           },
         },
       );

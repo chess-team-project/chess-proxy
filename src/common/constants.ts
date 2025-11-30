@@ -1,0 +1,1 @@
+export const WINSTON_INSTANCE = 'WINSTON_INSTANCE';

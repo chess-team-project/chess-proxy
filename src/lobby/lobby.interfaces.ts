@@ -1,7 +1,9 @@
+import { GameSession } from 'src/game/game.interfaces';
 import { CreateLobbyDto } from './dto/create-lobby.dto';
 import { JoinLobbyDto } from './dto/join-lobby.dto';
+import { S2CCommonEvents } from 'src/common/common.interface';
 
-export interface S2CLobbyEvents {
+export interface S2CLobbyEvents extends S2CCommonEvents {
   'lobby:created': (payload: {
     roomId: string;
     players: Player[];
@@ -13,11 +15,7 @@ export interface S2CLobbyEvents {
     message: string;
   }) => void;
   'lobby:error': (payload: { message: string }) => void;
-  'game:start': (payload: {
-    roomId: string;
-    white: Player;
-    black: Player;
-  }) => void;
+  'game:start': (payload: GameSession) => void;
 }
 
 export interface C2SLobbyEvents {
