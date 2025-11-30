@@ -1,16 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
+import { CusromLoggerService } from 'src/common/logger/logger.service';
 
 @Injectable()
 export class HttpClientService {
-  private readonly logger = new Logger(HttpClientService.name);
   private readonly client: AxiosInstance;
   private readonly JAVA_TOKEN: string;
 
   constructor(
-    private configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly logger: CusromLoggerService,
   ) {
+    this.logger.setContext(HttpClientService.name);
     this.client = axios.create({
       baseURL: this.configService.getOrThrow<string>('JAVA_URL'),
       timeout: 1000,

@@ -17,10 +17,11 @@ import { ConfigService } from '@nestjs/config';
           transports: [new winston.transports.Console()],
           level: logLevel,
           format: winston.format.combine(
-            winston.format.colorize({ all: true }),
             winston.format.printf(({ level, message, context }) => {
-              return `${level.toUpperCase()} [${context || '-'}] ${message}`;
+              level = level.toUpperCase();
+              return `${level} [${context || '-'}] ${message}`;
             }),
+            winston.format.colorize({ all: true }),
           ),
         })
       },

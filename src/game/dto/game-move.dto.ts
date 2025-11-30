@@ -20,5 +20,5 @@ export class GameMoveDto {
 
   @IsDefined()
   @IsNotEmpty()
-  move: any;
+  move: string;
 }

@@ -59,6 +59,8 @@ export class GameStateService {
     // Міняємо чергу ходу
     game.whitePlayer.isCurrent = !game.whitePlayer.isCurrent;
     game.blackPlayer.isCurrent = !game.blackPlayer.isCurrent;
+
+    return game;
   }
 
   // Допоміжний метод, щоб дізнатися, чия зараз черга (для валідації)

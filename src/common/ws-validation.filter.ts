@@ -2,11 +2,12 @@ import { Catch, ArgumentsHost } from '@nestjs/common';
 import { BaseWsExceptionFilter } from '@nestjs/websockets';
 import { BadRequestException } from '@nestjs/common';
 import { Socket } from 'socket.io';
+import { S2CCommonEvents } from './common.interface';
 
 @Catch(BadRequestException)
 export class WsValidationExceptionFilter extends BaseWsExceptionFilter {
   catch(exception: BadRequestException, host: ArgumentsHost) {
-    const client = host.switchToWs().getClient<Socket>();
+    const client = host.switchToWs().getClient<Socket<{}, S2CCommonEvents>>();
     const errorResponse = exception.getResponse();
 
     let validationMessages: string | string[] = 'Validation failed';
@@ -23,9 +24,8 @@ export class WsValidationExceptionFilter extends BaseWsExceptionFilter {
       }
     }
 
-    client.emit('lobby:error', {
-      event: 'validation:error',
-      message: validationMessages,
+    client.emit('err', {
+      message: JSON.stringify(validationMessages),
     });
   }
 }
