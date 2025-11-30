@@ -36,13 +36,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   io: Server<C2SGameEvents, S2CGameEvents>;
 
   handleConnection(client: Socket<C2SGameEvents, S2CGameEvents>) {
-    // Debug - технічна інфа
-    this.logger.debug(`🟢 [Game] Client connected: ${client.id}`);
+    this.logger.debug(`🟢 Client connected: ${client.id}`);
   }
 
   handleDisconnect(client: Socket<C2SGameEvents, S2CGameEvents>) {
-    // Debug - технічна інфа
-    this.logger.debug(`🔴 [Game] Client disconnected: ${client.id}`);
+    this.logger.debug(`🔴 Client disconnected: ${client.id}`);
     const gameId = this.gameStateService.handleDisconnect(client.id);
     if (gameId) {
        this.logger.warn(`Game ${gameId} interrupted by disconnect of ${client.id}`);
@@ -83,7 +81,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       message: `${playerName} connected.`,
     });
     
-    // Відправляємо актуальний стан тому, хто приєднався
     client.emit('game:update', game);
     
     this.logger.log(`🎮 Player ${playerName} (${color}) joined game ${roomId}. Ready to play.`);
@@ -95,7 +92,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: GameMoveDto,
   ) {
     const { roomId, move, playerName } = data;
-    // Debug для частотних подій, щоб не засмічувати лог, якщо гра активна
     this.logger.debug(`Player ${playerName} requesting move ${move} in game ${roomId}`);
 
     const isTurn = this.gameStateService.isPlayerTurn(roomId, client.id);
@@ -106,9 +102,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     try {
-        // Вже є у HttpClient, але тут можна залишити як debug
-        // this.logger.debug(`Sending move ${move} to Java...`); 
-        
         const result = await this.httpClientService.makeMove(roomId, move);
 
         const game = this.gameStateService.updateGameState(roomId, result.fen, result.legalMoves);
@@ -119,12 +112,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
         this.io.to(roomId).emit('game:update', game);
         
-        // Log успішного ходу - це важливо для історії гри
-        this.logger.log(`♟️ Move ${move} accepted in ${roomId}.`);
+        this.logger.log(`♟️ Move ${move} accepted in ${roomId}. New FEN: ${result.fen}`);
 
     } catch (error) {
         this.logger.error(
-            `🔥 Move failed in ${roomId}: ${error.message}`, 
+            `Move failed in ${roomId}: ${error.message}`, 
             error instanceof Error ? error.stack : undefined
         );
         client.emit('game:error', { message: 'Invalid move or server error' });
