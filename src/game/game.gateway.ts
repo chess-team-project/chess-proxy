@@ -83,6 +83,27 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
     
     client.emit('game:update', game);
+
+    // If both players are connected, start the clock for the current player
+    if (game?.whitePlayer.socketId && game?.blackPlayer.socketId) {
+      this.gameStateService.startClock(
+        roomId,
+        (g) => {
+          this.io.to(roomId).emit('game:clock', {
+            white: g.whitePlayer.timeRemaining ?? 0,
+            black: g.blackPlayer.timeRemaining ?? 0,
+          });
+        },
+        (expiredColor, g) => {
+          // expiredColor lost
+          const loser = expiredColor === 'white' ? g.whitePlayer.name : g.blackPlayer.name;
+          const winner = expiredColor === 'white' ? g.blackPlayer.name : g.whitePlayer.name;
+          this.logger.warn(`⏱️ Time expired in ${roomId}. Loser: ${loser}`);
+          this.io.to(roomId).emit('game:result', { winner, loser });
+          this.gameStateService.endGame(roomId);
+        },
+      );
+    }
     
     this.logger.log(`🎮 Player ${playerName} (${color}) joined game ${roomId}. Ready to play.`);
   }
@@ -105,6 +126,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
         const result = await this.httpClientService.makeMove(roomId, move);
 
+        // stop current player's clock while processing move result
+        this.gameStateService.stopClock(roomId);
+
         const game = this.gameStateService.updateGameState(roomId, result.fen, result.legalMoves);
 
         if (!game) {
@@ -123,8 +147,27 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
           this.logger.log(`🏆 Game ${roomId} finished. Winner: ${winner}, Loser: ${loser}`);
 
-          // Notify both players about the result
+          // Notify both players about the result and clean up
           this.io.to(roomId).emit('game:result', { winner, loser });
+          this.gameStateService.endGame(roomId);
+        } else {
+          // start clock for next player
+          this.gameStateService.startClock(
+            roomId,
+            (g) => {
+              this.io.to(roomId).emit('game:clock', {
+                white: g.whitePlayer.timeRemaining ?? 0,
+                black: g.blackPlayer.timeRemaining ?? 0,
+              });
+            },
+            (expiredColor, g) => {
+              const loser = expiredColor === 'white' ? g.whitePlayer.name : g.blackPlayer.name;
+              const winner = expiredColor === 'white' ? g.blackPlayer.name : g.whitePlayer.name;
+              this.logger.warn(`⏱️ Time expired in ${roomId}. Loser: ${loser}`);
+              this.io.to(roomId).emit('game:result', { winner, loser });
+              this.gameStateService.endGame(roomId);
+            },
+          );
         }
 
     } catch (error) {

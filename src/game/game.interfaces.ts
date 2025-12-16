@@ -5,6 +5,7 @@ export interface S2CGameEvents extends S2CCommonEvents {
   'game:opponentReady': (payload: { message: string }) => void;
   'game:update': (payload: GameSession) => void;
   'game:result': (payload: { winner: string; loser: string }) => void;
+  'game:clock': (payload: { white: number; black: number }) => void;
   'game:error': (payload: { message: string }) => void;
   'game:opponentDisconnected': (payload: { message: string }) => void;
 }
@@ -24,11 +25,13 @@ export interface GameSession {
     name: string;
     socketId: string | null;
     isCurrent: boolean;
+    timeRemaining?: number;
   };
   blackPlayer: {
     name: string;
     socketId: string | null;
     isCurrent: boolean;
+    timeRemaining?: number;
   };
   fen: string | null;
   legalMoves: string[] | null;
