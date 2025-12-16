@@ -23,7 +23,7 @@ import { HttpClientService } from 'src/http-client/http-client.service';
 import { GameStateService } from 'src/game/game-state.service';
 
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-@UseFilters(new WsValidationExceptionFilter())
+@UseFilters(WsValidationExceptionFilter)
 @WebSocketGateway({
   cors: { origin: '*' },
   namespace: '/lobby',

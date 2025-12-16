@@ -4,6 +4,7 @@ export interface S2CGameEvents extends S2CCommonEvents {
   'game:joined': (payload: { message: string }) => void;
   'game:opponentReady': (payload: { message: string }) => void;
   'game:update': (payload: GameSession) => void;
+  'game:result': (payload: { winner: string; loser: string }) => void;
   'game:error': (payload: { message: string }) => void;
   'game:opponentDisconnected': (payload: { message: string }) => void;
 }

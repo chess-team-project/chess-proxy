@@ -1,11 +1,18 @@
-import { Catch, ArgumentsHost } from '@nestjs/common';
+import { Catch, ArgumentsHost, Injectable } from '@nestjs/common';
 import { BaseWsExceptionFilter } from '@nestjs/websockets';
 import { BadRequestException } from '@nestjs/common';
 import { Socket } from 'socket.io';
 import { S2CCommonEvents } from './common.interface';
+import { CusromLoggerService } from 'src/common/logger/logger.service';
 
 @Catch(BadRequestException)
+@Injectable()
 export class WsValidationExceptionFilter extends BaseWsExceptionFilter {
+  constructor(private readonly logger: CusromLoggerService) {
+    super();
+    this.logger.setContext(WsValidationExceptionFilter.name);
+  }
+
   catch(exception: BadRequestException, host: ArgumentsHost) {
     const client = host.switchToWs().getClient<Socket<{}, S2CCommonEvents>>();
     const errorResponse = exception.getResponse();
@@ -27,5 +34,6 @@ export class WsValidationExceptionFilter extends BaseWsExceptionFilter {
     client.emit('err', {
       message: JSON.stringify(validationMessages),
     });
+    this.logger.warn(`WS validation error: ${JSON.stringify(validationMessages)}`);
   }
 }

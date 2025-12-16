@@ -18,7 +18,7 @@ import { CusromLoggerService } from 'src/common/logger/logger.service';
 import { GameStateService } from './game-state.service';
 
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-@UseFilters(new WsValidationExceptionFilter())
+@UseFilters(WsValidationExceptionFilter)
 @WebSocketGateway({
   cors: { origin: '*' },
   namespace: '/game',
@@ -53,6 +53,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket<C2SGameEvents, S2CGameEvents>,
     @MessageBody() data: GameJoinDto,
   ) {
+    console.dir({ data }, { depth: null });
     const { roomId, playerName } = data;
     this.logger.debug(`Player ${playerName} attempting to join game ${roomId}`);
 
@@ -111,10 +112,23 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
 
         this.io.to(roomId).emit('game:update', game);
-        
+
         this.logger.log(`♟️ Move ${move} accepted in ${roomId}. New FEN: ${result.fen}`);
+        console.dir({ result }, { depth: null });
+
+        // If there are no legal moves returned, the game ended (mate/stalemate).
+        if (Array.isArray(result.legalMoves) && result.legalMoves.length === 0) {
+          const winner = playerName;
+          const loser = game.whitePlayer.name === winner ? game.blackPlayer.name : game.whitePlayer.name;
+
+          this.logger.log(`🏆 Game ${roomId} finished. Winner: ${winner}, Loser: ${loser}`);
+
+          // Notify both players about the result
+          this.io.to(roomId).emit('game:result', { winner, loser });
+        }
 
     } catch (error) {
+      console.dir({ error }, { depth: null });
         this.logger.error(
             `Move failed in ${roomId}: ${error.message}`, 
             error instanceof Error ? error.stack : undefined
