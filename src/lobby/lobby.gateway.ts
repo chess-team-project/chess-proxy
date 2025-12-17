@@ -164,19 +164,24 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.logger.log(`🚀 Room ${roomId} starting game initialization...`);
 
       try {
-        const { gameId, fen, legalMoves } = await this.httpClientService.createGame(room.roomId)
+        const { gameId, fen, legalMoves } = await this.httpClientService.createGame(room.roomId);
 
-        this.logger.debug(`Java service confirmed game ${gameId} creation.`);
+this.logger.debug(`Java service confirmed game ${gameId} creation.`);
 
-        const gameSession = this.gameStateService.createGame({
-          player1Name: room.players[0].name,
-          player2Name: room.players[1].name,
-          gameId,
-          fen,
-          legalMoves,
-        })
+const gameSession = this.gameStateService.createGame({
+  player1Name: room.players[0].name,
+  player2Name: room.players[1].name,
+  gameId,
+  fen,
+  legalMoves,
+});
 
-        this.io.to(roomId).emit('game:start', gameSession);
+// ✅ ОЦЕ ДОДАЙ
+this.gameStateService.mapRoomToGame(room.roomId, gameId);
+this.logger.log(`[JAVA CREATE] roomId=${room.roomId} javaGameId=${gameId}`);
+
+// далі як було
+this.io.to(roomId).emit('game:start', gameSession);
 
         this.rooms.delete(roomId);
         this.logger.log(`🏁 Game started for ${roomId}. Lobby destroyed.`);

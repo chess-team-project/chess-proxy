@@ -13,11 +13,13 @@ export class HttpClientService {
     private readonly logger: CusromLoggerService,
   ) {
     this.logger.setContext(HttpClientService.name);
+
     this.client = axios.create({
       baseURL: this.configService.getOrThrow<string>('JAVA_URL'),
-      timeout: 1000,
+      timeout: 5000,
     });
-    this.JAVA_TOKEN = configService.getOrThrow<string>('JAVA_TOKEN')
+
+    this.JAVA_TOKEN = this.configService.getOrThrow<string>('JAVA_TOKEN');
   }
 
   private async withRetry<T>(
@@ -31,10 +33,13 @@ export class HttpClientService {
       try {
         this.logger.log(`HTTP attempt ${attempt}/${retries}`);
         return await fn();
-      } catch (error) {
+      } catch (error: any) {
         lastError = error;
+
+        const status = error?.response?.status;
+        const data = error?.response?.data;
         this.logger.warn(
-          `HTTP request failed on attempt ${attempt}: ${error?.message ?? error}`,
+          `HTTP request failed attempt ${attempt}/${retries}: ${error?.message ?? error} status=${status} data=${JSON.stringify(data)}`,
         );
 
         if (attempt < retries) {
@@ -47,6 +52,13 @@ export class HttpClientService {
     throw lastError;
   }
 
+  private authHeaders(extra?: Record<string, string>) {
+    return {
+      Authorization: this.JAVA_TOKEN,
+      ...(extra ?? {}),
+    };
+  }
+
   async getJavaHealth() {
     return this.withRetry(async () => {
       const response = await this.client.get<{ status: string }>('/api/health');
@@ -54,17 +66,16 @@ export class HttpClientService {
     });
   }
 
-
   async createGame(gameId: string) {
     return this.withRetry(async () => {
-      const response = await this.client.post<{ fen: string, legalMoves: string[], gameId: string }>(
+      const response = await this.client.post<{
+        fen: string;
+        legalMoves: string[];
+        gameId: string;
+      }>(
         `/api/game/create/${encodeURIComponent(gameId)}`,
         undefined,
-        {
-          headers: {
-            Authorization: this.JAVA_TOKEN,
-          },
-        },
+        { headers: this.authHeaders() },
       );
       return response.data;
     });
@@ -72,42 +83,66 @@ export class HttpClientService {
 
   async getGameState(gameId: string) {
     return this.withRetry(async () => {
-      const response = await this.client.get<{ fen: string, legalMoves: string[] }>(
+      const response = await this.client.get<{ fen: string; legalMoves: string[] }>(
         `/api/game/state/${encodeURIComponent(gameId)}`,
+        { headers: this.authHeaders() },
+      );
+      return response.data;
+    });
+  }
+
+  // ✅ move формат у вас зараз { move: "e2e4" }
+  async makeMove(gameId: string, move: string) {
+    return this.withRetry(async () => {
+      const response = await this.client.post<{ fen: string; legalMoves: string[] }>(
+        `/api/game/move/${encodeURIComponent(gameId)}`,
+        { move },
         {
-          headers: {
-            Authorization: this.JAVA_TOKEN,
-          },
+          headers: this.authHeaders({ 'Content-Type': 'application/json' }),
         },
       );
       return response.data;
     });
   }
 
-  async makeMove(gameId: string, move: string) {
+  // ✅ DRAW OFFER: POST /api/game/{gameId}/draw/offer
+  async offerDraw(gameId: string) {
     return this.withRetry(async () => {
-      const response = await this.client.post<{ fen: string, legalMoves: string[] }>(
-        `/api/game/move/${encodeURIComponent(gameId)}`,
-        { move },
-        {
-          headers: {
-            Authorization: this.JAVA_TOKEN,
-            'Content-Type': 'application/json',
-          },
-        },
+      const response = await this.client.post<{
+        message: string;
+        gameState?: any;
+      }>(
+        `/api/game/${encodeURIComponent(gameId)}/draw/offer`,
+        undefined,
+        { headers: this.authHeaders() },
       );
       return response.data;
     });
   }
+
+  // ✅ DRAW ACCEPT: POST /api/game/{gameId}/draw/accept
+  async acceptDraw(gameId: string) {
+    return this.withRetry(async () => {
+      const response = await this.client.post<{
+        message: string;
+        gameState?: any;
+      }>(
+        `/api/game/${encodeURIComponent(gameId)}/draw/accept`,
+        undefined,
+        { headers: this.authHeaders() },
+      );
+      return response.data;
+    });
+  }
+
+  // (опційно) якщо у вас є ендпоїнт видалення гри — тут має бути правильний шлях
   async deleteGame(gameId: string) {
     return this.withRetry(async () => {
-      const response = await this.client.post<{ message: string }>(
-        `/api/game/move/${encodeURIComponent(gameId)}`,
-        {
-          headers: {
-            Authorization: this.JAVA_TOKEN,
-          },
-        },
+      // ⚠️ Тут я залишаю як "placeholder", бо в Java-коді, який ти показував, DELETE endpoint нема.
+      // Якщо ви додасте: DELETE /api/game/{id}, тоді заміни на нього.
+      const response = await this.client.delete<{ message: string }>(
+        `/api/game/${encodeURIComponent(gameId)}`,
+        { headers: this.authHeaders() },
       );
       return response.data;
     });
